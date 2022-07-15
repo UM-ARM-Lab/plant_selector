@@ -56,7 +56,6 @@ def otsu_thresholding(img):
 
 
 def canny_edge_detection(img):
-    img = cv.imread(img, 0)
     edges = cv.Canny(img, 200, 400)
     plt.subplot(121), plt.imshow(img, cmap='gray')
     plt.title('Original Image'), plt.xticks([]), plt.yticks([])
@@ -69,11 +68,20 @@ def skeletonization(img):
     """================WORKS VERY GOOD================="""
     img_or = cv.imread(img, 1)
 
-    hsv = cv.cvtColor(img_or, cv.COLOR_BGR2HSV)
-    lower_green = np.array([0, 0, 250])
-    upper_green = np.array([50, 255, 255])
-    mask = cv.inRange(hsv, lower_green, upper_green)
-    res = cv.bitwise_and(img_or, img_or, mask=mask)
+    hsv = img_or.copy()
+    col_filter = img_or.copy()
+
+    for x in range(img_or.shape[0]):
+        for y in range(img_or.shape[1]):
+            cur_color = img_or[x][y]
+            gr_diff = cur_color[1] - cur_color[2]
+            print(gr_diff)
+            gb_diff = int(cur_color[1]) - int(cur_color[0])
+            if gr_diff > 10 and gb_diff > 10:
+               continue
+            else:
+                hsv[x][y] = [0, 0, 0]
+    res = hsv
 
     img_blurred = cv.medianBlur(res, 15)
     kernel = cv.getStructuringElement(cv.MORPH_CROSS, (3, 3))
@@ -97,8 +105,8 @@ def skeletonization(img):
     segmented_image = segmented_image.reshape(erosion.shape)
 
     plt.figure(1)
-    plt.imshow(hsv), plt.xticks([]), plt.yticks([])
-    plt.title("HSV Image")
+    plt.imshow(img_or), plt.xticks([]), plt.yticks([])
+    plt.title("OG Image")
     plt.figure(2)
     plt.imshow(res), plt.xticks([]), plt.yticks([])
     plt.title("After green mask")
@@ -148,15 +156,11 @@ def skeletonization(img):
 def contours_canny(img):
     """==========WORKS==========="""
     # Let's load a simple img with 3 black squares
-    img = cv.imread(img)
-    cv.waitKey(0)
-
     # Grayscale
     gray = cv.cvtColor(img, cv.COLOR_RGB2GRAY)
 
     # Find Canny edges
     edged = cv.Canny(gray, 400, 450)
-    cv.waitKey(0)
 
     # Finding Contours
     # Use a copy of the img e.g. edged.copy()
@@ -166,7 +170,6 @@ def contours_canny(img):
     plt.figure(1)
     plt.imshow(edged, cmap='gray')
     plt.title('Canny Edges After Contouring'), plt.xticks([]), plt.yticks([])
-    cv.waitKey(0)
 
     print("Number of Contours found = " + str(len(contours)))
 
@@ -174,22 +177,86 @@ def contours_canny(img):
     # -1 signifies drawing all contours
     cv.drawContours(img, contours, -1, (0, 255, 0), 3)
 
-    plt.figure(2)
+    plt.figure(6)
     plt.imshow(img, cmap='gray')
     plt.title('Contours'), plt.xticks([]), plt.yticks([])
+
+
+def christian(img_path):
+    img_or = cv.imread(img_path, 1)
+
+    col_filter = img_or.copy()
+    lower_green = np.array([5, 20, 5])
+    upper_green = np.array([255, 255, 255])
+    mask = cv.inRange(img_or, lower_green, upper_green)
+    res = cv.bitwise_and(img_or, img_or, mask=mask)
+
+    mask = np.zeros(col_filter.shape)
+    for x in range(img_or.shape[0]):
+        for y in range(img_or.shape[1]):
+            cur_color = res[x][y]
+            gr_diff = int(cur_color[1]) - int(cur_color[2])
+            gb_diff = int(cur_color[1]) - int(cur_color[0])
+            if gr_diff > 7 and gb_diff > 7:
+                mask[x][y] = 1
+                continue
+            else:
+                mask[x][y] = 0
+                col_filter[x][y] = [0, 0, 0]
+
+    plt.figure(1)
+    plt.imshow(img_or), plt.xticks([]), plt.yticks([])
+    plt.title("OG Image")
+    plt.figure(2)
+    plt.imshow(col_filter), plt.xticks([]), plt.yticks([])
+    plt.title("After green mask")
+    plt.figure(3)
+    plt.imshow(mask), plt.xticks([]), plt.yticks([])
+    plt.title("Binary Mask")
+
+    img_data = np.asarray(mask[:, :, 0], dtype=np.uint8)
+    # gx, gy = np.gradient(img_data)
+    # temp_edge = gy * gy + gx * gx
+    # temp_edge[temp_edge != 0.0] == 255.0
+    # plt.figure(4)
+    # plt.imshow(temp_edge), plt.xticks([]), plt.yticks([])
+    # plt.title("Binary Mask")
+
+    ##################SKELETONIZATION PART########################
+    size = np.size(img_or)
+    skel = np.zeros(img_or.shape, np.uint8)
+    img = np.zeros(img_or.shape, np.uint8)
+    img[mask == 1] = 255.0
+    element = cv.getStructuringElement(cv.MORPH_CROSS, (3, 3))
+    x = 0
+    while True:
+        eroded = cv.erode(img, element)
+        temp = cv.dilate(eroded, element)
+        temp = cv.subtract(img, temp)
+        skel = cv.bitwise_or(skel, temp)
+        img = eroded.copy()
+        x += 1
+        if x == 7:
+            break
+    plt.figure()
+    plt.imshow(skel, cmap='gray')
+    plt.title('Skeletonization'), plt.xticks([]), plt.yticks([])
+
     cv.waitKey(0)
     plt.show()
     cv.destroyAllWindows()
 
 
+
 def main():
-    img = '/home/miguel/Downloads/weed-example.jpg'
+    img = '/home/christianforeman/catkin_ws/src/plant_selector/good.png'
     # adaptive_gaussian_thresholding(img)
     # otsu_thresholding(img)
     # canny_edge_detection(img)
-    skeletonization(img)
+    # skeletonization(img)
     # contours_canny(img)
     # gabor_filter(img)
+    christian(img)
 
 if __name__ == '__main__':
     main()
